@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Entangled Chat Mesh 7</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+body { font-family: Arial; background: #1e1e1e; color: #eee; margin: 2em; }
+input, button { padding: 6px 10px; border-radius: 6px; margin: 4px; border: none; }
+input { width: 200px; }
+button { cursor: pointer; background: #00bfff; color: #000; font-weight: bold; }
+#chat { border: 1px solid #444; padding: 10px; border-radius: 10px; max-width: 700px; height: 450px; overflow-y: auto; }
+.msg { margin: 6px 0; padding: 4px 6px; border-radius: 6px; }
+.self { color: #00ff88; background: #003300; }
+.other { color: #ffd966; background: #332200; }
+.ai { color: #00bfff; background: #002244; }
+.state { font-size: 0.85em; opacity: 0.8; margin-top: 2px; }
+b { font-size: 1em; }
+</style>
+</head>
+<body>
+<h2>🌐 Entangled Chat Mesh 7</h2>
+
+<label>Name:</label> <input id="name" placeholder="Your name">
+<label>Room:</label> <input id="room" placeholder="default">
+<button onclick="start()">Start</button>
+
+<div id="chat"></div>
+
+<input id="message" placeholder="Type message..." onkeydown="if(event.key==='Enter') send()">
+<button onclick="send()">Send</button>
+
+<script>
+let socket, username, roomname;
+
+function start() {
+    username = document.getElementById("name").value || "Guest";
+    roomname = document.getElementById("room").value || "default";
+
+    socket = io("http://127.0.0.1:5000");
+
+    socket.on("connect", () => {
+        socket.emit("join_room", { room: roomname, name: username });
+        logSystem("[System] Connected to room '" + roomname + "'");
+    });
+
+    socket.on("peer_list", peers => {
+        console.log("Peers:", peers.map(p => p.name));
+    });
+
+    socket.on("state_broadcast", data => {
+        const div = document.getElementById("chat");
+        const state = data.state || {};
+        const who = data.name || state.name || "Unknown";
+        const msg = state.message || "";
+        let cls = "other";
+        if (who === username) cls = "self";
+        else if (who.toLowerCase().includes("alfred")) cls = "ai";
+
+        const mood = state.mood ? ` (${state.mood})` : "";
+        const energy = state.energy !== undefined ? `⚡${(state.energy*100).toFixed(0)}%` : "";
+        const confidence = state.confidence !== undefined ? `💪${(state.confidence*100).toFixed(0)}%` : "";
+        const awareness = state.awareness !== undefined ? `🧠${(state.awareness*100).toFixed(0)}%` : "";
+
+        const stateInfo = [energy, confidence, awareness].filter(s => s).join(" | ");
+
+        div.innerHTML += `<div class="msg ${cls}"><b>${who}${mood}:</b> ${msg}${stateInfo ? `<div class="state">${stateInfo}</div>` : ""}</div>`;
+        div.scrollTop = div.scrollHeight;
+    });
+}
+
+function send() {
+    const text = document.getElementById("message").value.trim();
+    if (!text) return;
+
+    const mood = text.toLowerCase().includes("sad") ? "sad" :
+                 text.toLowerCase().includes("happy") ? "happy" : "neutral";
+
+    socket.emit("state_update", {
+        room: roomname,
+        state: { name: username, message: text, mood: mood }
+    });
+
+    const div = document.getElementById("chat");
+    div.innerHTML += `<div class="msg self"><b>${username}:</b> ${text} (${mood})</div>`;
+    div.scrollTop = div.scrollHeight;
+    document.getElementById("message").value = "";
+}
+
+function logSystem(msg){
+    const div = document.getElementById("chat");
+    div.innerHTML += `<div class="msg state"><i>${msg}</i></div>`;
+    div.scrollTop = div.scrollHeight;
+}
+</script>
+</body>
+</html>
+
